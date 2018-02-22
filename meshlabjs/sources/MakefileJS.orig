@@ -1,0 +1,53 @@
+CC=emcc
+# A few notes on the options:
+#
+# -s PRECISE_F32=1 is needed because of a strange bug involving the assignments 
+#           of floats. Actually asm.js uses doubles for most computation, 
+#           this flags ensure a behavoiur more similar to the expected one.
+# --bind    needed for exporting the functions from cpp to js.
+# -s DEMANGLE_SUPPORT=1 More consistent naming of the cpp functions is preserved 
+#           in asm.js. Useful for cpp stacktrace inside the browser. 
+# Reasonable memory options: 
+# 
+# -s ALLOW_MEMORY_GROWTH=1 
+# -s TOTAL_MEMORY=536870912
+# -s TOTAL_MEMORY=1073741824 
+ 
+
+CFLAGS=-I.  -I ../../vcglib/   -I ../../vcglib/eigenlib -s TOTAL_MEMORY=536870912  -std=c++11 -s PRECISE_F32=1 -s DEMANGLE_SUPPORT=1 --bind  -s LINKABLE=1 -Os
+
+OBJ = Color.bc Measure.bc Decorator.bc CppMesh.bc Meshing.bc Sampling.bc \
+      Create.bc Refine.bc Transform.bc Selection.bc Quality.bc Poisson.bc \
+      ../../vcglib/wrap/ply/plylib.bc \
+      FuncParser.bc 
+
+LIBS = lib/muparserLib.bc lib/poissonLib.bc
+
+%.bc: %.cpp
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+MeshLabCppCore.js: $(OBJ) $(LIBS)
+	$(CC) -o ../js/generated/$@ $^ $(CFLAGS)
+
+FuncParser.bc : FuncParser.cpp lib/muparserLib.bc
+	$(CC) -o $@ $< $(CFLAGS) -I external/muparser-2.2.5/include 
+
+Poisson.bc : Poisson.cpp lib/poissonLib.bc
+	$(CC) -o $@ $< $(CFLAGS) -I external/PoissonRecon/Src 
+
+lib/muparserLib.bc: 
+	cd ./external/muparser-2.2.5/src/ && $(MAKE) -f MakefileJS
+
+lib/poissonLib.bc:
+	cd ./external/PoissonRecon/Src/ && $(MAKE) -f MakefileJS
+
+clean:
+	rm -f *.bc MeshlabGenJs.js ../../vcglib/wrap/ply/plylib.bc 
+
+cleanlib:
+	rm -f lib/*.bc
+	cd ./external/muparser-2.2.5/src/ && $(MAKE) -f MakefileJS clean
+	cd ./external/PoissonRecon/Src/ && $(MAKE) -f MakefileJS clean
+
+install:
+	mv MeshLabCppCore.js MeshLabCppCore.js.mem ../js/generated
